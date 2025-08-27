@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>qdo adnan - Digital Console</title>
+		<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+		<style>
+				@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+				:root {
+						--primary-glow: #00ff9b;
+						--secondary-glow: #00d9ff;
+						--accent-glow: #ff00e6;
+						--bg-dark: #02060f;
+						--bg-terminal: rgba(5, 12, 30, 0.85);
+						--border-color: rgba(0, 255, 155, 0.2);
+						--text-primary: #e0f6ff;
+						--text-secondary: #7a92b1;
+						--ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+				}
+
+				* {
+						margin: 0;
+						padding: 0;
+						box-sizing: border-box;
+				}
+
+				html {
+						cursor: none;
+				}
+
+				body {
+						font-family: 'JetBrains Mono', monospace;
+						background: var(--bg-dark);
+						color: var(--text-primary);
+						min-height: 100vh;
+						overflow-y: auto;
+						display: block;
+						user-select: none;
+						-webkit-user-select: none;
+				}
+
+				.cursor-follower, .cursor-dot {
+						position: fixed;
+						border-radius: 50%;
+						pointer-events: none;
+						z-index: 10001;
+						will-change: transform;
+						transition: transform 0.2s var(--ease-out-quint), background-color 0.3s ease, border-color 0.3s ease, width 0.3s ease, height 0.3s ease;
+				}
+
+				.cursor-follower {
+						width: 24px;
+						height: 24px;
+						border: 1px solid var(--primary-glow);
+				}
+
+				.cursor-dot {
+						width: 4px;
+						height: 4px;
+						background-color: var(--primary-glow);
+				}
+
+				.cursor-follower.hovered {
+						transform: translate(-50%, -50%) scale(1.8);
+						background-color: rgba(0, 255, 155, 0.1);
+						border-color: var(--secondary-glow);
+				}
+
+				#matrix-canvas {
+						position: fixed;
+						top: 0;
+						left: 0;
+						width: 100%;
+						height: 100%;
+						z-index: -1;
+						opacity: 0.3;
+				}
+
+				.scanline-effect {
+						position: fixed;
+						top: 0;
+						left: 0;
+						width: 100%;
+						height: 100%;
+						background: linear-gradient(0deg, transparent 50%, rgba(0, 255, 155, 0.03) 50%);
+						background-size: 100% 4px;
+						animation: moveScanline 30s linear infinite;
+						pointer-events: none;
+						z-index: 1;
+				}
+
+				@keyframes moveScanline {
+						to { background-position-y: 100vh; }
+				}
+
+				.container {
+						position: relative;
+						z-index: 2;
+						padding: 50px 20px;
+						width: 100%;
+						max-width: 960px;
+						margin: 0 auto;
+						display: flex;
+						justify-content: center;
+						align-items: flex-start;
+						min-height: calc(100vh - 100px);
+				}
+
+				.terminal {
+						width: 100%;
+						max-width: 900px;
+						background: var(--bg-terminal);
+						border: 1px solid var(--border-color);
+						border-radius: 12px;
+						backdrop-filter: blur(12px);
+						-webkit-backdrop-filter: blur(12px);
+						box-shadow: 0 0 60px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(0, 255, 155, 0.1);
+						display: flex;
+						flex-direction: column;
+						opacity: 0;
+						transform: scale(0.95);
+						animation: terminalFadeIn 1s ease-out 0.5s forwards;
+						transition: opacity 0.4s ease, transform 0.4s ease;
+						position: relative;
+						overflow: hidden;
+						min-height: 500px;
+						max-height: calc(100vh - 100px);
+				}
+
+				@keyframes terminalFadeIn {
+						to { opacity: 1; transform: scale(1); }
+				}
+
+				.terminal-header {
+						padding: 12px 20px;
+						border-bottom: 1px solid var(--border-color);
+						display: flex;
+						align-items: center;
+						gap: 10px;
+						flex-shrink: 0;
+				}
+
+				.header-buttons {
+						display: flex;
+						gap: 8px;
+				}
+
+				.header-button {
+						width: 12px;
+						height: 12px;
+						border-radius: 50%;
+						transition: transform 0.2s ease, filter 0.2s ease;
+						cursor: pointer;
+				}
+
+				.header-button:hover {
+						transform: scale(1.2);
+						filter: brightness(1.2);
+				}
+
+				.header-button.close { background-color: #ff5f56; }
+				.header-button.minimize { background-color: #ffbd2e; }
+				.header-button.maximize { background-color: #27c93f; }
+
+				.terminal-title {
+						color: var(--text-secondary);
+						font-size: 0.9em;
+						margin-right: auto;
+				}
+
+				.terminal-body {
+						padding: 30px;
+						font-size: 1.1em;
+						flex-grow: 1;
+						overflow-y: auto;
+				}
+
+				.line {
+						opacity: 0;
+						transform: translateY(15px);
+						transition: opacity 0.5s ease, transform 0.5s ease;
+				}
+
+				.line.visible {
+						opacity: 1;
+						transform: translateY(0);
+				}
+
+				.prompt { color: var(--secondary-glow); }
+				.command { color: var(--text-primary); }
+				.output-section { padding-right: 1em; margin-top: 1.5em; margin-bottom: 2.5em; }
+
+				.identity-name {
+						font-size: 3em;
+						font-weight: 700;
+						letter-spacing: 2px;
+						margin-bottom: 10px;
+						background: linear-gradient(90deg, var(--primary-glow), var(--secondary-glow), var(--accent-glow));
+						background-size: 200% auto;
+						-webkit-background-clip: text;
+						-webkit-text-fill-color: transparent;
+						background-clip: text;
+						animation: textShine 4s linear infinite;
+				}
+
+				@keyframes textShine {
+						to { background-position: 200% center; }
+				}
+
+				.identity-title {
+						font-size: 1.2em;
+						color: var(--text-secondary);
+						margin-bottom: 2em;
+				}
+
+				.link-grid {
+						display: grid;
+						grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+						gap: 15px;
+				}
+
+				.link {
+						display: flex;
+						align-items: center;
+						gap: 12px;
+						padding: 15px 20px;
+						background: rgba(0, 255, 155, 0.05);
+						border: 1px solid transparent;
+						border-radius: 8px;
+						color: var(--text-primary);
+						text-decoration: none;
+						transition: all 0.3s var(--ease-out-quint);
+						position: relative;
+						overflow: hidden;
+						transform: translateY(10px);
+						opacity: 0;
+						cursor: pointer;
+				}
+
+				.link.visible {
+						transform: translateY(0);
+						opacity: 1;
+				}
+
+				.link:hover {
+						transform: translateY(-4px);
+						background: rgba(0, 255, 155, 0.1);
+						border-color: var(--border-color);
+						box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+				}
+
+				.link svg {
+						width: 24px;
+						height: 24px;
+						fill: var(--text-secondary);
+						transition: all 0.3s var(--ease-out-quint);
+						z-index: 1;
+				}
+
+				.link:hover svg {
+						fill: var(--primary-glow);
+						transform: scale(1.1);
+				}
+
+				.link-text {
+						display: flex;
+						flex-direction: column;
+						z-index: 1;
+				}
+
+				.link-platform { font-weight: 500; }
+				.link-handle { font-size: 0.9em; color: var(--text-secondary); }
+
+				.typing-cursor {
+						display: inline-block;
+						background: var(--primary-glow);
+						width: 10px;
+						height: 1.2em;
+						animation: blink 1s step-end infinite;
+						vertical-align: middle;
+						margin-right: 5px;
+						box-shadow: 0 0 5px var(--primary-glow);
+				}
+
+				@keyframes blink {
+						50% { opacity: 0; }
+				}
+
+				.loader-wrapper {
+						position: fixed;
+						top: 0; left: 0;
+						width: 100%;
+						height: 100%;
+						background: var(--bg-dark);
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						z-index: 10000;
+						transition: opacity 1s ease;
+				}
+
+				.loader-wrapper.hidden {
+						opacity: 0;
+						pointer-events: none;
+				}
+
+				.loader-text {
+						font-size: 1.2em;
+						color: var(--text-secondary);
+						animation: textPulse 2s ease-in-out infinite;
+				}
+
+				@keyframes textPulse {
+						50% { color: var(--text-primary); text-shadow: 0 0 5px var(--primary-glow); }
+				}
+
+				@media (max-width: 768px) {
+						html { cursor: auto; }
+						.terminal-body { 
+								padding: 20px;
+								font-size: 1em;
+						}
+						.identity-name { font-size: 2.2em; }
+						.identity-title { font-size: 1em; }
+						.cursor-follower, .cursor-dot { display: none; }
+						.container {
+								padding: 20px 10px;
+								min-height: calc(100vh - 40px);
+						}
+						.terminal {
+								border-radius: 0;
+								max-height: calc(100vh - 40px);
+						}
+				}
+		</style>
+</head>
+<body>
+
+		<div class="loader-wrapper" id="loader">
+				<div class="loader-text">[ Initializing Interface ]</div>
+		</div>
+
+		<canvas id="matrix-canvas"></canvas>
+		<div class="scanline-effect"></div>
+		<div class="cursor-dot" id="cursor-dot"></div>
+		<div class="cursor-follower" id="cursor-follower"></div>
+
+		<div class="container">
+				<main class="terminal" id="terminal">
+						<header class="terminal-header">
+								<div class="header-buttons">
+										<div class="header-button close" id="btn-close"></div>
+										<div class="header-button minimize" id="btn-minimize"></div>
+										<div class="header-button maximize" id="btn-maximize"></div>
+								</div>
+								<div class="terminal-title">/dev/console</div>
+						</header>
+						<section class="terminal-body">
+								<div class="line" id="line1"><span class="prompt">➜ </span><span class="command"></span></div>
+								<div class="output-section">
+										<div class="identity-name" id="name"></div>
+										<div class="identity-title" id="title"></div>
+								</div>
+								<div class="line" id="line2"><span class="prompt">➜ </span><span class="command"></span></div>
+								<div class="output-section">
+										<div class="link-grid" id="links">
+												<a href="https://www.instagram.com/qdo0" target="_blank" class="link">
+														<svg viewBox="0 0 24 24"><path d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 0 0 3.6-3.6V7.6C20 5.61 18.39 4 16.4 4H7.6m9.65 1.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10m0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+														<span class="link-text"><span class="link-platform">Instagram</span><span class="link-handle">@2p.cq</span></span>
+												</a>
+												<a href="https://www.tiktok.com/@100_" target="_blank" class="link">
+														 <svg viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61.3 3.79.92l.41 2.06c-1.14-.44-2.38-.66-3.63-.66-3.23 0-5.86 2.62-5.86 5.85s2.63 5.85 5.86 5.85c1.25 0 2.49-.22 3.63-.66l-.41 2.06c-1.18.62-2.48.94-3.79.92-4.41 0-7.98-3.58-7.98-7.98S8.115.02 12.525.02Z M16.69 2.98l.32 1.6c.43-.13.86-.28 1.28-.45l.48-2.1c-.6-.28-1.23-.5-1.88-.63l-.2 1.58Z"/></svg>
+														<span class="link-text"><span class="link-platform">TikTok</span><span class="link-handle">@sfop</span></span>
+												</a>
+												<a href="https://t.me/h_8_k" target="_blank" class="link">
+														<svg viewBox="0 0 24 24"><path d="m9.417 15.181-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L22.83 3.948c.356-1.725-.758-2.457-1.998-1.968L2.034 8.622c-1.677.66-1.657 1.6-1.42 1.74l5.228 1.631 12.227-7.642c.576-.354 1.115-.168.623.318Z"/></svg>
+														<span class="link-text"><span class="link-platform">Telegram Personal</span><span class="link-handle">@Q_1_3</span></span>
+												</a>
+												<a href="https://t.me/qado_o" target="_blank" class="link">
+														<svg viewBox="0 0 24 24"><path d="m9.417 15.181-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L22.83 3.948c.356-1.725-.758-2.457-1.998-1.968L2.034 8.622c-1.677.66-1.657 1.6-1.42 1.74l5.228 1.631 12.227-7.642c.576-.354 1.115-.168.623.318Z"/></svg>
+														<span class="link-text"><span class="link-platform">Public Channel</span><span class="link-handle">@rmaxo</span></span>
+												</a>
+												<a href="." target="_blank" class="link">
+														<svg viewBox="0 0 24 24"><path d="m9.417 15.181-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931L22.83 3.948c.356-1.725-.758-2.457-1.998-1.968L2.034 8.622c-1.677.66-1.657 1.6-1.42 1.74l5.228 1.631 12.227-7.642c.576-.354 1.115-.168.623.318Z"/></svg>
+														<span class="link-text"><span class="link-platform">Private Channel</span><span class="link-handle">Exclusive Access</span></span>
+												</a>
+										</div>
+								</div>
+								<div class="line" id="line3"><span class="prompt">➜ </span><span class="command"></span></div>
+						</section>
+				</main>
+		</div>
+
+		<script>
+				document.addEventListener('DOMContentLoaded', () => {
+						const App = {
+								elements: {
+										loader: document.getElementById('loader'),
+										canvas: document.getElementById('matrix-canvas'),
+										terminal: document.getElementById('terminal'),
+										cursorDot: document.getElementById('cursor-dot'),
+										cursorFollower: document.getElementById('cursor-follower'),
+										lines: document.querySelectorAll('.line'),
+										links: document.querySelectorAll('.link'),
+										name: document.getElementById('name'),
+										title: document.getElementById('title'),
+										cmd1: document.querySelector('#line1 .command'),
+										cmd2: document.querySelector('#line2 .command'),
+										cmd3: document.querySelector('#line3 .command'),
+										btnClose: document.getElementById('btn-close'),
+										btnMinimize: document.getElementById('btn-minimize'),
+										btnMaximize: document.getElementById('btn-maximize'),
+										interactiveEls: document.querySelectorAll('a, .header-button'),
+								},
+
+								state: {
+										mouse: { x: 0, y: 0 },
+										follower: { x: 0, y: 0 },
+										matrixAnimationId: null,
+								},
+
+								init() {
+										this.initMatrix();
+										if (!window.matchMedia("(pointer: coarse)").matches) {
+												this.initCursor();
+										}
+										this.initTerminalControls();
+										this.runSequence();
+								},
+
+								delay(ms) {
+										return new Promise(resolve => setTimeout(resolve, ms));
+								},
+
+								typeText(element, text, speed = 50) {
+										return new Promise(resolve => {
+												let i = 0;
+												const existingCursor = element.parentElement.querySelector('.typing-cursor');
+												if (existingCursor) existingCursor.remove();
+
+												const type = () => {
+														if (i < text.length) {
+																element.textContent += text[i];
+																i++;
+																setTimeout(type, speed + (Math.random() - 0.5) * 25);
+														} else {
+																const cursorSpan = document.createElement('span');
+																cursorSpan.className = 'typing-cursor';
+																element.appendChild(cursorSpan);
+																resolve();
+														}
+												};
+												type();
+										});
+								},
+
+								initCursor() {
+										window.addEventListener('mousemove', e => {
+												this.state.mouse.x = e.clientX;
+												this.state.mouse.y = e.clientY;
+										});
+
+										const animateCursor = () => {
+												this.elements.cursorDot.style.transform = `translate(${this.state.mouse.x}px, ${this.state.mouse.y}px)`;
+												this.state.follower.x += (this.state.mouse.x - this.state.follower.x) * 0.15;
+												this.state.follower.y += (this.state.mouse.y - this.state.follower.y) * 0.15;
+												this.elements.cursorFollower.style.transform = `translate(${this.state.follower.x - 12}px, ${this.state.follower.y - 12}px)`;
+												requestAnimationFrame(animateCursor);
+										};
+
+										this.elements.interactiveEls.forEach(el => {
+												el.addEventListener('mouseenter', () => this.elements.cursorFollower.classList.add('hovered'));
+												el.addEventListener('mouseleave', () => this.elements.cursorFollower.classList.remove('hovered'));
+										});
+
+										animateCursor();
+								},
+
+								initMatrix() {
+										const ctx = this.elements.canvas.getContext('2d');
+										const chars = '01';
+										const fontSize = 16;
+										let columns, drops;
+
+										const setup = () => {
+												this.elements.canvas.width = window.innerWidth;
+												this.elements.canvas.height = window.innerHeight;
+												columns = Math.ceil(this.elements.canvas.width / fontSize);
+												drops = Array(columns).fill(1).map(() => Math.random() * this.elements.canvas.height);
+										};
+
+										const draw = () => {
+												ctx.fillStyle = 'rgba(2, 6, 15, 0.1)';
+												ctx.fillRect(0, 0, this.elements.canvas.width, this.elements.canvas.height);
+												ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--primary-glow');
+												ctx.font = `${fontSize}px monospace`;
+												for (let i = 0; i < drops.length; i++) {
+														const text = chars[Math.floor(Math.random() * chars.length)];
+														ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+														if (drops[i] * fontSize > this.elements.canvas.height && Math.random() > 0.975) {
+																drops[i] = 0;
+														}
+														drops[i]++;
+												}
+										};
+
+										const animateMatrix = () => {
+												draw();
+												this.state.matrixAnimationId = requestAnimationFrame(animateMatrix);
+										};
+
+										window.addEventListener('resize', () => {
+												if (this.state.matrixAnimationId) {
+														cancelAnimationFrame(this.state.matrixAnimationId);
+												}
+												setup();
+												animateMatrix();
+										});
+
+										setup();
+										animateMatrix();
+								},
+
+								initTerminalControls() {
+										this.elements.btnMaximize.addEventListener('click', () => {
+												if (!document.fullscreenElement) {
+														document.documentElement.requestFullscreen().catch(err => console.error(err));
+												} else {
+														document.exitFullscreen();
+												}
+										});
+
+										this.elements.btnClose.addEventListener('click', () => {
+												this.elements.terminal.style.opacity = '0';
+												this.elements.terminal.style.transform = 'scale(0.9) translateY(20px)';
+										});
+
+										this.elements.btnMinimize.addEventListener('click', () => {
+												this.elements.terminal.style.transform = 'scale(0.98) translateY(5px)';
+												setTimeout(() => this.elements.terminal.style.transform = 'scale(1)', 300);
+										});
+								},
+
+								async runSequence() {
+										await this.delay(1500);
+										this.elements.loader.classList.add('hidden');
+										await this.delay(500);
+
+										this.elements.lines[0].classList.add('visible');
+										await this.typeText(this.elements.cmd1, './get-identity');
+										await this.delay(400);
+
+										await this.typeText(this.elements.name, 'Ali Amer', 30);
+										await this.typeText(this.elements.title, 'Developer & Creator', 30);
+										await this.delay(500);
+
+										this.elements.lines[1].classList.add('visible');
+										await this.typeText(this.elements.cmd2, 'ls /hubs/social');
+										await this.delay(300);
+
+										this.elements.links.forEach((link, i) => {
+												setTimeout(() => link.classList.add('visible'), i * 100);
+										});
+										await this.delay(this.elements.links.length * 100 + 500);
+
+										this.elements.lines[2].classList.add('visible');
+										await this.typeText(this.elements.cmd3, 'Session active. Awaiting new connections...');
+								}
+						};
+
+						App.init();
+				});
+		</script>
+</body>
+</html>
